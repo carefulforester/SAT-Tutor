@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { sendContact, type ContactState } from '@/app/actions/contact'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,6 +18,34 @@ export function ContactForm() {
   const [state, formAction, pending] = useActionState(sendContact, initialState)
   const [contactMethod, setContactMethod] = useState<ContactMethod>('Email')
   const errors = state.fieldErrors ?? {}
+
+  useEffect(() => {
+    if (state.status === 'mailto' && state.mailtoHref) {
+      window.location.href = state.mailtoHref
+    }
+  }, [state])
+
+  if (state.status === 'mailto' && state.mailtoHref) {
+    return (
+      <div
+        role="status"
+        className="rounded-md border border-border bg-card p-6 leading-relaxed"
+      >
+        <p className="font-serif text-xl">Almost done.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Your email app should open with your message ready to go — just press send.
+          If it didn&apos;t open, use the button below.
+        </p>
+        <a
+          href={state.mailtoHref}
+          target="_top"
+          className="mt-4 inline-flex h-10 items-center rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          Open email
+        </a>
+      </div>
+    )
+  }
 
   if (state.status === 'success') {
     return (

@@ -4,8 +4,9 @@ import { createHash } from 'node:crypto'
 import { Resend } from 'resend'
 
 export type ContactState = {
-  status: 'idle' | 'success' | 'error'
+  status: 'idle' | 'success' | 'error' | 'mailto'
   message?: string
+  mailtoHref?: string
   fieldErrors?: Partial<Record<'name' | 'email' | 'phone' | 'contactMethod' | 'message', string>>
 }
 
@@ -65,20 +66,8 @@ export async function sendContact(
     return { status: 'error', fieldErrors }
   }
 
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) {
-    return {
-      status: 'error',
-      message: 'The contact form is not configured yet. Please try again later.',
-    }
-  }
-
-  const resend = new Resend(apiKey)
   const to = process.env.CONTACT_TO_EMAIL ?? 'speedymg7@berkeley.edu'
-  const idempotencyKey = `contact-form/${createHash('sha256')
-    .update([name, email, phone, contactMethod, role, testDate, message].join('|'))
-    .digest('hex')}`
-
+  const subject = `New tutoring inquiry from ${name}`
   const rows: [string, string][] = [
     ['Name', name],
     ['Email', email],
@@ -88,12 +77,26 @@ export async function sendContact(
     ['Test date', testDate || '—'],
   ]
 
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    const body = `${rows.map(([k, v]) => `${k}: ${v}`).join('\n')}\n\n${message.slice(0, 1500)}`
+    return {
+      status: 'mailto',
+      mailtoHref: `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+    }
+  }
+
+  const resend = new Resend(apiKey)
+  const idempotencyKey = `contact-form/${createHash('sha256')
+    .update([name, email, phone, contactMethod, role, testDate, message].join('|'))
+    .digest('hex')}`
+
   const { error } = await resend.emails.send(
     {
       from: 'SAT Tutoring Site <onboarding@resend.dev>',
       to: [to],
       replyTo: email,
-      subject: `New tutoring inquiry from ${name}`,
+      subject,
       text: `${rows.map(([k, v]) => `${k}: ${v}`).join('\n')}\n\n${message}`,
       html: `<div style="font-family:system-ui,sans-serif;line-height:1.5">
         ${rows
